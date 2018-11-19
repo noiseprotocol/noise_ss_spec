@@ -1,0 +1,456 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+  <meta http-equiv="Content-Style-Type" content="text/css" />
+  <meta name="generator" content="pandoc" />
+  <meta name="author" content="Trevor Perrin (noise@trevp.net)" />
+  <meta name="author" content="Justin Cormack (justin@specialbusservice.com)" />
+  <meta name="date" content="2018-11-18" />
+  <title>Static-Static Pattern Modifiers for Noise</title>
+  <style type="text/css">code{white-space: pre;}</style>
+  <link rel="stylesheet" href="spec_markdown.css" type="text/css" />
+</head>
+<body>
+<div id="header">
+<h1 class="title">Static-Static Pattern Modifiers for Noise</h1>
+<b>Author:</b> Trevor Perrin (noise@trevp.net)<br/>
+<b>Author:</b> Justin Cormack (justin@specialbusservice.com)<br/>
+<b>Revision:</b> 1<br/>
+<b>Date:</b> 2018-11-18<br/>
+<b>Status:</b> unofficial/unstable<br/>
+<b>PDF:</b> <a href="noise_ss.pdf">noise_ss.pdf</a><br/>
+</div>
+<div id="TOC">
+<h2 class="toc">Table of Contents</h2>
+<ul>
+<li><a href="#introduction">1. Introduction</a></li>
+<li><a href="#overview">2. Overview</a></li>
+<li><a href="#the-ss-and-noss-modifiers">3. The &quot;ss&quot; and &quot;noss&quot; modifiers</a></li>
+<li><a href="#fundamental-patterns-with-noss">4. Fundamental patterns with &quot;noss&quot;</a></li>
+<li><a href="#fundamental-patterns-with-ss">5. Fundamental patterns with &quot;ss&quot;</a></li>
+<li><a href="#deferred-patterns-with-ss">4. Deferred patterns with &quot;ss&quot;</a></li>
+<li><a href="#security-considerations">5. Security considerations</a></li>
+<li><a href="#rationales">6. Rationales</a></li>
+<li><a href="#ipr">7. IPR</a></li>
+</ul>
+</div>
+<h1 id="introduction">1. Introduction</h1>
+<p>This document introduces the <code>&quot;ss&quot;</code> and <code>&quot;noss&quot;</code> pattern modifiers which add and remove the <code>&quot;ss&quot;</code> token from Noise handshake patterns.</p>
+<h1 id="overview">2. Overview</h1>
+<p>Noise handshakes can use a static-static DH (as represented by the <code>&quot;ss&quot;</code> token) for a couple purposes:</p>
+<ul>
+<li><p>To authenticate the sender of a message to the recipient when the sender hasn't yet received the recipient's ephemeral public key.</p></li>
+<li><p>To add additional security in cases where one or both parties have their ephemeral private keys compromised, but their static private keys remain secure.</p></li>
+</ul>
+<p>The fundamental Noise handshake patterns <code>IK</code> and <code>XK</code> use <code>&quot;ss&quot;</code> for the former purpose. The <code>&quot;noss&quot;</code> modifier can be applied to these patterns to remove the static-static DH if sender authentication in the first message is not desired.</p>
+<p>The <code>&quot;ss&quot;</code> modifier can be applied to other patterns for the second purpose (increased security against ephemeral key compromise).</p>
+<h1 id="the-ss-and-noss-modifiers">3. The &quot;ss&quot; and &quot;noss&quot; modifiers</h1>
+<p>The <code>&quot;ss&quot;</code> modifier adds the <code>&quot;ss&quot;</code> token into a handshake immediately after both <code>&quot;se&quot;</code> and <code>&quot;es&quot;</code> have been performed. If the pattern has an existing <code>&quot;ss&quot;</code> token in a different place it is deleted.</p>
+<p>The <code>&quot;noss&quot;</code> modifier removes the <code>&quot;ss&quot;</code> token.</p>
+<p>These modifiers can only be applied to interactive handshake patterns (one-way patterns necessarily rely on <code>&quot;ss&quot;</code> more than interactive patterns).</p>
+<h1 id="fundamental-patterns-with-noss">4. Fundamental patterns with &quot;noss&quot;</h1>
+<p>The following table demonstrates the <code>&quot;noss&quot;</code> modifier applied to the <code>KK</code> and <code>IK</code> fundamental patterns. The original pattern is on the left, and the modified version is on the right.</p>
+
+<table>
+<colgroup>
+<col width="45%" />
+<col width="54%" />
+</colgroup>
+<tbody>
+<tr class="odd">
+<td><pre><code>KK:
+  -&gt; s
+  &lt;- s
+  ...
+  -&gt; e, es, ss
+  &lt;- e, ee, se</code></pre></td>
+<td><pre><code>  KKnoss:
+    -&gt; s
+    &lt;- s
+    ...
+    -&gt; e, es
+    &lt;- e, ee, se</code></pre></td>
+</tr>
+<tr class="even">
+<td><pre><code>IK:
+  &lt;- s
+  ...
+  -&gt; e, es, s, ss
+  &lt;- e, ee, se</code></pre></td>
+<td><pre><code>  IKnoss:
+    &lt;- s
+    ...
+    -&gt; e, es, s
+    &lt;- e, ee, se</code></pre></td>
+</tr>
+</tbody>
+</table>
+<p>Omitting the <code>&quot;ss&quot;</code> substantially changes the security properties for the initial two handshake payloads. The initiator's first payload not longer has any authentication. Less obviously, the responder's first payload has <em>weak forward secrecy</em> since anyone could forge the initial ephemeral, then attempt to compromise the initiator's static key at a later date.</p>
+<p>Using the notation from the Noise specification, the new security properties are:</p>
+<table style="width:88%;">
+<colgroup>
+<col width="87%" />
+</colgroup>
+<tbody>
+<tr class="odd">
+<td><pre><code>KKnoss
+  -&gt; s
+  &lt;- s
+  ...
+  -&gt; e, es                  0                2
+  &lt;- e, ee, se              2                3
+  -&gt;                        2                5
+  &lt;-                        2                5</code></pre></td>
+</tr>
+<tr class="even">
+<td><pre><code>IKnoss
+  &lt;- s
+  ...
+  -&gt; e, es, s               0                2
+  &lt;- e, ee, se              2                3
+  -&gt;                        2                5
+  &lt;-                        2                5</code></pre></td>
+</tr>
+</tbody>
+</table>
+
+<h1 id="fundamental-patterns-with-ss">5. Fundamental patterns with &quot;ss&quot;</h1>
+<p>The below table demonstrates the <code>&quot;ss&quot;</code> modifier applied to the relevant fundamental handshake patterns.</p>
+<table>
+<colgroup>
+<col width="45%" />
+<col width="54%" />
+</colgroup>
+<tbody>
+<tr class="odd">
+<td><pre><code>XK:
+  &lt;- s
+  ...
+  -&gt; e, es
+  &lt;- e, ee
+  -&gt; s, se</code></pre></td>
+<td><pre><code> XKss:
+   &lt;- s
+   ...
+   -&gt; e, es
+   &lt;- e, ee
+   -&gt; s, se, ss</code></pre></td>
+</tr>
+<tr class="even">
+<td><pre><code>XX:
+  -&gt; e
+  &lt;- e, ee, s, es
+  -&gt; s, se</code></pre></td>
+<td><pre><code> XXss:
+   -&gt; e
+   &lt;- e, ee, s, es
+   -&gt; s, se, ss</code></pre></td>
+</tr>
+<tr class="odd">
+<td><pre><code>KK:
+  -&gt; s
+  &lt;- s
+  ...
+  -&gt; e, es, ss
+  &lt;- e, ee, se</code></pre></td>
+<td><pre><code> KKss:
+   -&gt; s
+   &lt;- s
+   ...
+   -&gt; e, es
+   &lt;- e, ee, se, ss</code></pre></td>
+</tr>
+<tr class="even">
+<td><pre><code>KX:
+  -&gt; s
+  ...
+  -&gt; e
+  &lt;- e, ee, se, s, es</code></pre></td>
+<td><pre><code> KXss:
+   -&gt; s
+   ...
+   -&gt; e
+   &lt;- e, ee, se, s, es, ss</code></pre></td>
+</tr>
+<tr class="odd">
+<td><pre><code>IK:
+  &lt;- s
+  ...
+  -&gt; e, es, s, ss
+  &lt;- e, ee, se</code></pre></td>
+<td><pre><code> IKss:
+   &lt;- s
+   ...
+   -&gt; e, es, s
+   &lt;- e, ee, se, ss</code></pre></td>
+</tr>
+<tr class="even">
+<td><pre><code>IX:
+  -&gt; e, s
+  &lt;- e, ee, se, s, es</code></pre></td>
+<td><pre><code> IXss:
+   -&gt; e, s
+   &lt;- e, ee, se, s, es, ss</code></pre></td>
+</tr>
+</tbody>
+</table>
+<h1 id="deferred-patterns-with-ss">4. Deferred patterns with &quot;ss&quot;</h1>
+<p>The below table demonstrates the <code>&quot;ss&quot;</code> modifier applied to the relevant deferred handshake patterns.</p>
+<table style="width:92%;">
+<colgroup>
+<col width="45%" />
+<col width="45%" />
+</colgroup>
+<tbody>
+<tr class="odd">
+<td><pre><code>    X1K:
+      &lt;- s
+      ...
+      -&gt; e, es
+      &lt;- e, ee
+      -&gt; s
+      &lt;- se</code></pre></td>
+<td><pre><code>    X1Kss:
+      &lt;- s
+      ...
+      -&gt; e, es
+      &lt;- e, ee
+      -&gt; s
+      &lt;- se, ss</code></pre></td>
+</tr>
+<tr class="even">
+<td><pre><code>    XK1:
+      &lt;- s
+      ...
+      -&gt; e
+      &lt;- e, ee, es
+      -&gt; s, se</code></pre></td>
+<td><pre><code>    XK1ss:
+      &lt;- s
+      ...
+      -&gt; e
+      &lt;- e, ee, es
+      -&gt; s, se, ss</code></pre></td>
+</tr>
+<tr class="odd">
+<td><pre><code>    X1K1:
+      &lt;- s
+      ...
+      -&gt; e
+      &lt;- e, ee, es
+      -&gt; s
+      &lt;- se</code></pre></td>
+<td><pre><code>    X1K1ss:
+      &lt;- s
+      ...
+      -&gt; e
+      &lt;- e, ee, es
+      -&gt; s
+      &lt;- se, ss</code></pre></td>
+</tr>
+<tr class="even">
+<td><pre><code>    X1X:
+      -&gt; e
+      &lt;- e, ee, s, es
+      -&gt; s
+      &lt;- se</code></pre></td>
+<td><pre><code>    X1Xss:
+      -&gt; e
+      &lt;- e, ee, s, es
+      -&gt; s
+      &lt;- se, ss</code></pre></td>
+</tr>
+<tr class="odd">
+<td><pre><code>    XX1:
+      -&gt; e
+      &lt;- e, ee, s
+      -&gt; es, s, se</code></pre></td>
+<td><pre><code>    XX1ss:
+      -&gt; e
+      &lt;- e, ee, s
+      -&gt; es, s, se, ss</code></pre></td>
+</tr>
+<tr class="even">
+<td><pre><code>    X1X1:
+      -&gt; e
+      &lt;- e, ee, s
+      -&gt; es, s
+      &lt;- se</code></pre></td>
+<td><pre><code>    X1X1ss:
+      -&gt; e
+      &lt;- e, ee, s
+      -&gt; es, s
+      &lt;- se, ss</code></pre></td>
+</tr>
+<tr class="odd">
+<td><pre><code>    K1K:
+      -&gt; s
+      &lt;- s
+      ...
+      -&gt; e, es
+      &lt;- e, ee
+      -&gt; se</code></pre></td>
+<td><pre><code>    K1Kss:
+      -&gt; s
+      &lt;- s
+      ...
+      -&gt; e, es
+      &lt;- e, ee
+      -&gt; se, ss</code></pre></td>
+</tr>
+<tr class="even">
+<td><pre><code>    KK1:
+      -&gt; s
+      &lt;- s
+      ...
+      -&gt; e
+      &lt;- e, ee, se, es</code></pre></td>
+<td><pre><code>    KK1ss:
+      -&gt; s
+      &lt;- s
+      ...
+      -&gt; e
+      &lt;- e, ee, se, es, ss</code></pre></td>
+</tr>
+<tr class="odd">
+<td><pre><code>    K1K1:
+      -&gt; s
+      &lt;- s
+      ...
+      -&gt; e
+      &lt;- e, ee, es
+      -&gt; se</code></pre></td>
+<td><pre><code>    K1K1ss:
+      -&gt; s
+      &lt;- s
+      ...
+      -&gt; e
+      &lt;- e, ee, es
+      -&gt; se, ss</code></pre></td>
+</tr>
+<tr class="even">
+<td><pre><code>    K1X:
+      -&gt; s
+      ...
+      -&gt; e
+      &lt;- e, ee, s, es
+      -&gt; se</code></pre></td>
+<td><pre><code>    K1Xss:
+      -&gt; s
+      ...
+      -&gt; e
+      &lt;- e, ee, s, es
+      -&gt; se, ss</code></pre></td>
+</tr>
+<tr class="odd">
+<td><pre><code>    KX1:
+      -&gt; s
+      ...
+      -&gt; e
+      &lt;- e, ee, se, s
+      -&gt; es</code></pre></td>
+<td><pre><code>    KX1ss:
+      -&gt; s
+      ...
+      -&gt; e
+      &lt;- e, ee, se, s
+      -&gt; es, ss</code></pre></td>
+</tr>
+<tr class="even">
+<td><pre><code>    K1X1:
+      -&gt; s
+      ...
+      -&gt; e
+      &lt;- e, ee, s
+      -&gt; se, es</code></pre></td>
+<td><pre><code>    K1X1ss:
+      -&gt; s
+      ...
+      -&gt; e
+      &lt;- e, ee, s
+      -&gt; se, es, ss</code></pre></td>
+</tr>
+<tr class="odd">
+<td><pre><code>    I1K:
+      &lt;- s
+      ...
+      -&gt; e, es, s
+      &lt;- e, ee
+      -&gt; se</code></pre></td>
+<td><pre><code>    I1Kss:
+      &lt;- s
+      ...
+      -&gt; e, es, s
+      &lt;- e, ee
+      -&gt; se, ss</code></pre></td>
+</tr>
+<tr class="even">
+<td><pre><code>    IK1:
+      &lt;- s
+      ...
+      -&gt; e, s
+      &lt;- e, ee, se, es</code></pre></td>
+<td><pre><code>    IK1ss:
+      &lt;- s
+      ...
+      -&gt; e, s
+      &lt;- e, ee, se, es,ss</code></pre></td>
+</tr>
+<tr class="odd">
+<td><pre><code>    I1K1:
+      &lt;- s
+      ...
+      -&gt; e, s
+      &lt;- e, ee, es
+      -&gt; se</code></pre></td>
+<td><pre><code>    I1K1ss:
+      &lt;- s
+      ...
+      -&gt; e, s
+      &lt;- e, ee, es
+      -&gt; se, ss</code></pre></td>
+</tr>
+<tr class="even">
+<td><pre><code>    I1X:
+      -&gt; e, s
+      &lt;- e, ee, s, es
+      -&gt; se</code></pre></td>
+<td><pre><code>    I1Xss:
+      -&gt; e, s
+      &lt;- e, ee, s, es
+      -&gt; se, ss</code></pre></td>
+</tr>
+<tr class="odd">
+<td><pre><code>    IX1:
+      -&gt; e, s
+      &lt;- e, ee, se, s
+      -&gt; es</code></pre></td>
+<td><pre><code>    IX1ss:
+      -&gt; e, s
+      &lt;- e, ee, se, s
+      -&gt; es, ss</code></pre></td>
+</tr>
+<tr class="even">
+<td><pre><code>    I1X1:
+      -&gt; e, s
+      &lt;- e, ee, s
+      -&gt; se, es</code></pre></td>
+<td><pre><code>    I1X1ss:
+      -&gt; e, s
+      &lt;- e, ee, s
+      -&gt; se, es, ss</code></pre></td>
+</tr>
+</tbody>
+</table>
+<h1 id="security-considerations">5. Security considerations</h1>
+<p>The <code>&quot;noss&quot;</code> modifier substantially changes the security properties of any encrypted data in the first round-trip between initiator and responder (i.e. the handshake payloads). The <code>&quot;noss&quot;</code> modifier should not be used unless you have a clear undersanding of how the security properties change, and why this is acceptable.</p>
+<p>The <code>&quot;ss&quot;</code> modifier doesn't reduce any security properties of the handshake.</p>
+<p>However, it only helps in the case that one or both parties' ephemeral private keys are compromised, while the corresponding static keys remain secure. This is an unusual attack scenario. This scenario might apply in some cases of RNG failure, though note that a severe enough RNG failure might cause repeating ephemerals, which the <code>&quot;ss&quot;</code> modifier would not protect against.</p>
+<h1 id="rationales">6. Rationales</h1>
+<p>In some of the deferred patterns it would be valid to move the <code>&quot;ss&quot;</code> earlier than a deferred authentication DH like <code>&quot;se&quot;</code> or <code>&quot;es&quot;</code>. However, such an <code>&quot;ss&quot;</code> would end up providing a weaker authentication than the DH which was intentionally deferred.</p>
+<p>Since the goal of deferred patterns is to defer authentication, it seemed better to preserve that property and add <code>&quot;ss&quot;</code> after the authentication DHs.</p>
+<h1 id="ipr">7. IPR</h1>
+<p>This document is hereby placed in the public domain.</p>
+</body>
+</html>
