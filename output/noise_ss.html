@@ -444,7 +444,7 @@
 </tbody>
 </table>
 <h1 id="security-considerations">5. Security considerations</h1>
-<p>The <code>&quot;noss&quot;</code> modifier substantially changes the security properties of any encrypted data in the first round-trip between initiator and responder (i.e. the handshake payloads). The <code>&quot;noss&quot;</code> modifier should not be used unless you have a clear undersanding of how the security properties change, and why this is acceptable.</p>
+<p>The <code>&quot;noss&quot;</code> modifier substantially changes the security properties of any encrypted data in the first round-trip between initiator and responder (i.e. the handshake payloads). It also removes the resilience <code>&quot;ss&quot;</code> provides against ephemeral key compromise. The <code>&quot;noss&quot;</code> modifier should not be used unless you have a clear undersanding of how these security properties change, and why this is acceptable.</p>
 <p>The <code>&quot;ss&quot;</code> modifier doesn't reduce any security properties of the handshake.</p>
 <p>However, it only helps in the case that one or both parties' ephemeral private keys are compromised, while the corresponding static keys remain secure. This is an unusual attack scenario. This scenario might apply in some cases of RNG failure, though note that a severe enough RNG failure might cause repeating ephemerals, which the <code>&quot;ss&quot;</code> modifier would not protect against.</p>
 <h1 id="rationales">6. Rationales</h1>

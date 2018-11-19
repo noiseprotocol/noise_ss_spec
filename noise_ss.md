@@ -311,9 +311,10 @@ deferred handshake patterns.
 
 The `"noss"` modifier substantially changes the security properties of any
 encrypted data in the first round-trip between initiator and responder (i.e.
-the handshake payloads).  The `"noss"` modifier should not be used unless you
-have a clear undersanding of how the security properties change, and why this
-is acceptable.
+the handshake payloads).  It also removes the resilience `"ss"` provides
+against ephemeral key compromise.  The `"noss"` modifier should not be used
+unless you have a clear undersanding of how these security properties change, and
+why this is acceptable.
 
 The `"ss"` modifier doesn't reduce any security properties of the handshake.
 
